@@ -77,10 +77,16 @@ async function checkDatabase(force=false){
 }
 if(window.PlakoroSync){
  document.getElementById('check-updates')?.addEventListener('click',()=>checkDatabase(true));
- (async()=>{try{const saved=await PlakoroSync.cached();if(saved)installDatabase(saved);}catch(e){}await checkDatabase(true);})();
- window.addEventListener('online',()=>checkDatabase());
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDatabase();});
- setInterval(()=>{if(!document.hidden)checkDatabase();},15*60*1000);
+ let ready=false,active=!document.hidden,lastOpen=-Infinity;
+ const opened=()=>{active=true;if(!ready||document.hidden||Date.now()-lastOpen<1000)return;lastOpen=Date.now();return checkDatabase(true);};
+ const closed=()=>{active=false;};
+ // Load offline data before starting any update; coalesce native/browser resume events.
+ window.addEventListener('online',()=>{if(ready&&active&&!document.hidden)checkDatabase(true);});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)closed();else opened();});
+ window.addEventListener('pageshow',e=>{if(e.persisted)opened();});
+ window.addEventListener('plakoro-app-open',opened);window.addEventListener('plakoro-app-close',closed);
+ (async()=>{try{const saved=await PlakoroSync.cached();if(saved)installDatabase(saved);}catch(e){}ready=true;await opened();})();
+ setInterval(()=>{if(ready&&active&&!document.hidden)checkDatabase();},15*60*1000);
 }
 
 function energyIcon(code){const names={G:'Grass',R:'Fire',W:'Water',L:'Electric',F:'Fighting',P:'Psychic',D:'Darkness',M:'Metal',Y:'Flying',N:'Dragon',C:'Normal'};const name=names[code]||code;return `<span class="energy-symbol"><img src="${window.ENERGY_ICONS?.[code]||''}" alt="${esc(name)}" width="36" height="36"><span>${esc(name)}</span></span>`;}

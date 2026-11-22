@@ -2,6 +2,8 @@
 function availableFormats(data){
  const formats=(window.FORMAT_DATA?.formats||[]).map(f=>({...f}));
  for(const f of data.formats||[]){const key=/legacy/i.test(f.title)?'legacy':/league/i.test(f.title)?'league':f.id||'';const index=formats.findIndex(x=>x.id===key||x.title.toLowerCase()===String(f.title).toLowerCase());if(index>=0)formats[index]={...formats[index],...f,id:formats[index].id};else formats.push({...f,id:key||'source-'+formats.length});}
+ // Keep owner-supplied additions when an older Drive document is refreshed.
+ for(const f of formats){const required=(window.FORMAT_DATA?.formats||[]).find(x=>x.id===f.id)?.requiredRules||[];const missing=required.filter(rule=>!String(f.text||'').includes(rule));if(missing.length)f.text=(f.text||'')+'\n\n'+missing.map(rule=>'- '+rule).join('\n');}
  return formats;
 }
 function renderRules(section=''){

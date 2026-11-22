@@ -18,13 +18,15 @@ window.Loadouts=(()=>{
  function stage(i,baseHp){if(!Number.isInteger(i)||i<0||i>=slot().stages.length)throw Error('Choose a loadout stage.');const value=Number.isFinite(current().hp)?current().hp:Number.isFinite(baseHp)?Math.max(0,baseHp):null;slot().stage=i;current().hp=value;save();return current();}
  function replace(value){const parent=current().parent,hp=slot().stage===0?value.hp:current().hp;slot().stages[slot().stage]={...blank(parent),...value,hp,parent};if(slot().stage===0)slot().stages=slot().stages.slice(0,1);save();return current();}
  function hp(delta,max){const x=current();x.hp=Math.max(0,Math.min(9999,(Number.isFinite(x.hp)?x.hp:Number(max)||0)+delta));save();return x.hp;}
- function species(p){return (p.species||p.name||'').toLowerCase().replace(/^(?:dx\s+)?(?:strong|legendary|surfing)\s+/,'').replace(/^dx\s+/,'').trim();}
- function surfing(p){return p.form==='surfing'||/^(?:dx\s+)?surfing\s+pikachu$/i.test(p.name||'');}
+ function species(p){return (p.species||p.name||'').toLowerCase().trim().replace(/^(?:(?:dx|strong|legendary|surfing)\s+)+/,'').trim();}
+ function surfing(p){return p.form==='surfing'||/^(?:(?:dx|strong|legendary)\s+)*surfing\s+pikachu$/i.test(String(p.name||'').trim());}
  function movesFor(p,all,edition='RE',chronicle=false){const family=species(p),seen=new Set(),out=[];for(const owner of all){if(species(owner)!==family)continue;for(const move of owner.ownMoves||owner.moves||[]){if(move.year===1997&&!chronicle)continue;if(move.year===1997&&move.edition&&move.edition!==edition)continue;
- // Explicit owner metadata is required to distinguish ordinary Pikachu cards stored in a Surfing folder.
- const exclusive=move.surfingOnly===true||(move.surfingOnly!==false&&surfing(owner));if(exclusive&&!surfing(p))continue;
  if(move.editions&&move.year===1997&&!move.editions[edition])continue;
- const m=move.editions?{...move,...move.editions[edition]}:move;if(!seen.has(m.id)){seen.add(m.id);out.push(m);}}}return out;}
+ const m=move.editions?{...move,...move.editions[edition]}:move;
+ // A card's printed owner takes priority over the folder or Pokémon that carries it.
+ const declaredOwner=String(m.owner||'').trim();
+ const exclusive=m.surfingOnly===true||(declaredOwner?surfing({name:declaredOwner,form:m.form}):m.surfingOnly!==false&&surfing(owner));if(exclusive&&!surfing(p))continue;
+ if(!seen.has(m.id)){seen.add(m.id);out.push(m);}}}return out;}
  const isEvolve=m=>m?.action==='evolve'||/^evolve(?:\s|$)/i.test(m?.name||'');
  const isDevolve=m=>m?.action==='devolve'||/^devolve(?:\s|$)/i.test(m?.name||'');
  function selected(index,all,s=slot()){const t=s.stages[index],p=all.find(p=>p.id===t?.pokemon);return p?movesFor(p,all,t.edition,true).filter(m=>t.moves.includes(m.id)):[];}
