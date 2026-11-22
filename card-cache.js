@@ -47,8 +47,9 @@ window.CardCache=(()=>{
    // The previous complete catalogue stays installed if any image fails.
    await record('snapshots','current',metadata);return value;
   }
-  async function load(){
-   const value=await record('snapshots','current');if(!value)return value;
+  async function load(transform=value=>value){
+   const saved=await record('snapshots','current');if(!saved)return saved;
+   const value=transform(saved);
    const images=new Map();map(value,url=>{if(typeof url==='string'&&url.startsWith(PREFIX))images.set(url.slice(PREFIX.length),null);return url;});
    for(const key of images.keys()){const url=await image(key);if(!imageData(url))throw Error('A saved card is missing');images.set(key,url);}
    // Legacy snapshots with inline images also remain readable, without erasure.

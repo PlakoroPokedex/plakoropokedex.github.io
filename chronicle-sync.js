@@ -1,6 +1,7 @@
 'use strict';
 window.ChronicleSync=(()=>{
  const endpoint=window.CHRONICLE_FEED_URL||'',expectedSource=window.CHRONICLE_SOURCE_URL||window.CHRONICLE_DATA?.source||'';
+ window.CHRONICLE_DATA=ChronicleOG.catalogue(window.CHRONICLE_DATA);
  const CHECK_INTERVAL_MS=30*60*1000,RETRY_INTERVAL_MS=60*1000;
  let busy=false,last=0,started=false,timer=null,appActive=true,lastOpen=-Infinity,active=null,resumeRequested=false,retrySoon=false;
  let status=endpoint?'Bundled Chronicle cards ready. Drive checks on opening and every 30 minutes while open.':'Bundled Chronicle cards ready. The Drive update feed is not configured.';
@@ -13,9 +14,11 @@ window.ChronicleSync=(()=>{
   if(!d||d.version!==1||typeof d.revision!=='string'||!Array.isArray(d.pokemon)||!Array.isArray(d.moves))throw invalid('Invalid Chronicle catalogue.');
   if(d.complete===false){const detail=Array.isArray(d.warnings)&&d.warnings.length?' '+d.warnings.slice(0,2).join('; '):'';throw invalid('Drive uploads are incomplete.'+detail+' Keeping your saved cards.');}
   if(!expectedSource||d.source!==expectedSource)throw invalid('The update feed returned cards from a different folder. Keeping your saved cards.');
+  // Exclude retired editions before validating or downloading any card assets.
+  d=ChronicleOG.catalogue(d);
   if(d.pokemon.length>1000||d.moves.length>10000||new Set(d.pokemon.map(p=>p.id)).size!==d.pokemon.length)throw invalid('Invalid Chronicle catalogue.');
   for(const p of d.pokemon)if(!p.id||!p.name||!p.image||!Number.isFinite(p.hp)||!Array.isArray(p.moves)||!p.editions||!Object.keys(p.editions).length)throw invalid('Incomplete character metadata.');
-  for(const m of [...d.moves,...d.pokemon.flatMap(p=>p.moves)])if(!m.id||!m.name||!m.owner||!m.image||!['OG','RE'].includes(m.edition))throw invalid('Incomplete move metadata.');
+  for(const m of [...d.moves,...d.pokemon.flatMap(p=>p.moves)])if(!m.id||!m.name||!m.owner||!m.image||m.edition!=='OG')throw invalid('Incomplete move metadata.');
   return d;
  }
  function wait(ms,signal){return new Promise((resolve,reject)=>{
@@ -66,7 +69,7 @@ window.ChronicleSync=(()=>{
   throw Error('Drive scan needs more time. Saved progress will resume automatically.');
  }
  const offline=CardCache.create('plakoro-chronicle-v1',3);
- const stored=offline.record,cache=value=>value===undefined?offline.load():offline.save(value);
+ const stored=offline.record,cache=value=>value===undefined?offline.load(ChronicleOG.catalogue):offline.save(ChronicleOG.catalogue(value));
  const png=image=>typeof image==='string'&&/^data:image\/png;base64,iVBORw0KGgo/.test(image);
  async function localImage(image,signal){
   // The APK ships these exact images; copy their bytes into the new snapshot
@@ -149,7 +152,18 @@ window.ChronicleSync=(()=>{
  function closed(){appActive=false;clearTimeout(timer);active?.abort();}
  async function start(){
   if(started)return;started=true;
-  try{const saved=await cache();if(saved&&Date.parse(saved.checkedAt||saved.snapshotDate)>=Date.parse(window.CHRONICLE_DATA.checkedAt||window.CHRONICLE_DATA.snapshotDate))install(saved);}catch(e){}
+  try{
+   const saved=await cache();
+   if(saved){
+    const og=validate(saved);
+    if(Date.parse(og.checkedAt||og.snapshotDate)>=Date.parse(window.CHRONICLE_DATA.checkedAt||window.CHRONICLE_DATA.snapshotDate))install(og);
+    // Rewrite old caches and pending downloads without RE references, then
+    // remove their unused images. Loadouts and collection data are separate.
+    await cache(og);
+   }
+   const pending=await stored('snapshots','download');if(pending)await stored('snapshots','download',validate(pending));
+   await offline.prune();
+  }catch(e){}
   window.addEventListener('online',()=>{if(appActive&&!document.hidden)check(true);});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)closed();else opened();});
   window.addEventListener('pageshow',e=>{if(e.persisted)opened();});
