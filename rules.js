@@ -7,6 +7,11 @@ function availableFormats(data){
  return formats;
 }
 function renderRules(section=''){
+ const chapters = {'':'','how-to':'setup','formats':'official','format/official':'official','format/legacy':'legacy','format/league':'league'};
+ if(Object.hasOwn(chapters,section)){
+  location.replace('rules.html'+(chapters[section]?'#'+chapters[section]:''));
+  return;
+ }
  const data={...window.RULES_DATA};for(const [k,v] of Object.entries(window.CHRONICLE_DATA.rules||{}))if(v)data[k]=v;
  const formats=availableFormats(data);
  const back='<a class="back" href="#rules">← All rules</a>';
