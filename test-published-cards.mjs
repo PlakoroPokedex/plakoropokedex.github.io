@@ -32,6 +32,11 @@ test('an older fallback Drive feed cannot replace newer website cards',async()=>
  vm.runInNewContext(await fs.readFile(new URL('./chronicle-sync.js',import.meta.url),'utf8'),w);
  assert.equal(await w.ChronicleSync.download(current,new AbortController().signal),null);assert.equal(calls.length,1);assert.equal(w.CHRONICLE_DATA.revision,'fresh');
 });
+test('an up-to-date published website does not ask each visitor to scan external databases',async()=>{
+ const w={CHRONICLE_DATA:{source:'public-drive',pokemon:[],moves:[]},CHRONICLE_SOURCE_URL:'public-drive',ChronicleOG:{catalogue:d=>d},CardCache:{create:()=>({})},PublishedCards:{enabled:true,download:async()=>null},document:{getElementById:()=>null},fetch:async()=>assert.fail('No external source request is needed')};w.window=w;
+ for(const file of ['sync.js','chronicle-sync.js'])vm.runInNewContext(await fs.readFile(new URL('./'+file,import.meta.url),'utf8'),w);
+ assert.equal(await w.PlakoroSync.download({},()=>{}),null);assert.equal(await w.ChronicleSync.download({},new AbortController().signal),null);
+});
 function page(rows){return "<script>window['_DRIVE_ivd'] = '"+JSON.stringify(JSON.stringify([rows,null,null,null])).slice(1,-1)+"';</script>";}
 const id='public_folder_id_1234567890';
 const rows=Array.from({length:50},(_,i)=>['public_file_id_'+String(i).padStart(10,'0'),[id],'Card '+i,'image/png',null,null,null,null,null,null,1234567890]);
