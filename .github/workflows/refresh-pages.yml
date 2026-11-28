@@ -1,0 +1,69 @@
+name: Refresh cards and publish Pokédex
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: pokedex-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: actions/cache/restore@v4
+        with:
+          path: .card-cache
+          key: pokedex-public-cards-${{ github.run_id }}
+          restore-keys: pokedex-public-cards-
+      - name: Test the publishing and browser update policy
+        run: node --test test-published-cards.mjs
+      - name: Refresh PlakoroDB and public OG Drive cards
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node refresh-cards.mjs
+      - uses: actions/cache/save@v4
+        with:
+          path: .card-cache
+          key: pokedex-public-cards-${{ github.run_id }}
+      - name: Record successful daily checks
+        run: |
+          if [ -f update-check.json ]; then git add update-check.json; fi
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'Record automatic card database check'
+            git push || true
+          fi
+      - name: Prevent an older run replacing a newer source update
+        id: current
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/configure-pages@v5
+        if: steps.current.outputs.publish == 'true'
+      - uses: actions/upload-pages-artifact@v4
+        if: steps.current.outputs.publish == 'true'
+        with:
+          path: _site
+      - name: Publish the complete website
+        if: steps.current.outputs.publish == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
