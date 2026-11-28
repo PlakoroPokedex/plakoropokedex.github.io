@@ -83,7 +83,7 @@ if(window.PlakoroSync){
  document.addEventListener('visibilitychange',()=>{if(document.hidden)closed();else opened();});
  window.addEventListener('pageshow',e=>{if(e.persisted)opened();});
  window.addEventListener('plakoro-app-open',opened);window.addEventListener('plakoro-app-close',closed);
- (async()=>{try{const saved=await PlakoroSync.cached();if(saved)installDatabase(saved);}catch(e){}ready=true;await opened();})();
+ (async()=>{try{const saved=await PlakoroSync.cached();if(saved&&((Date.parse(saved.sourceUpdatedAt||saved.snapshotDate)||0)>(Date.parse(database.sourceUpdatedAt||database.snapshotDate)||0)))installDatabase(saved);}catch(e){}ready=true;await opened();})();
  setInterval(()=>{if(ready&&active&&!document.hidden)checkDatabase();},15*60*1000);
 }
 

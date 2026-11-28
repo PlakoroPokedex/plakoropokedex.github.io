@@ -81,10 +81,11 @@ window.ChronicleSync=(()=>{
   const data='data:image/png;base64,'+btoa(binary);return png(data)?data:null;
  }
  async function download(current,signal){
+  if(window.PublishedCards?.enabled){try{const published=await PublishedCards.download('chronicle',current,say,signal);if(published)return validate(published);}catch(e){assertActive(signal);say('Checking the original Chronicle source…');}}
   let next;
-  try{const saved=await stored('snapshots','download');if(saved&&saved.revision!==current.revision)next=validate(saved);}catch(e){}
+  try{const saved=await stored('snapshots','download');if(saved&&saved.revision!==current.revision&&(Date.parse(saved.checkedAt||saved.snapshotDate)||0)>(Date.parse(current.checkedAt||current.snapshotDate)||0))next=validate(saved);}catch(e){}
   if(next)say('Resuming saved Chronicle card downloads…');else next=await manifest(signal);
-  if(next.revision===current.revision)return null;
+  if(next.revision===current.revision||(Date.parse(next.checkedAt||next.snapshotDate)||0)<(Date.parse(current.checkedAt||current.snapshotDate)||0))return null;
   // Persist the manifest before any card downloads. Each original PNG is
   // journaled separately, so closing Android never discards completed work.
   try{await stored('snapshots','download',next);}catch(e){}
